@@ -7,6 +7,11 @@ require 'imago'
 # MCP Server for the Imago gem - provides image generation through multiple AI providers
 class ImagoMcpServer
   SUPPORTED_PROVIDERS = %i[openai gemini xai].freeze
+  PROVIDER_ENV_VARS = {
+    openai: 'OPENAI_API_KEY',
+    gemini: 'GEMINI_API_KEY',
+    xai: 'XAI_API_KEY'
+  }.freeze
 
   def initialize(input: $stdin, output: $stdout)
     @input = input
@@ -110,6 +115,18 @@ class ImagoMcpServer
     tool_error_response(id, "Provider not found: #{e.message}")
   end
 
+  def available_providers
+    SUPPORTED_PROVIDERS.select { |provider| provider_available?(provider) }
+  end
+
+  def provider_available?(provider)
+    env_var = PROVIDER_ENV_VARS[provider]
+    return false unless env_var
+
+    value = ENV.fetch(env_var, nil)
+    value && !value.empty?
+  end
+
   def tools
     [
       {
@@ -120,7 +137,7 @@ class ImagoMcpServer
           properties: {
             provider: {
               type: 'string',
-              enum: SUPPORTED_PROVIDERS.map(&:to_s),
+              enum: available_providers.map(&:to_s),
               description: 'The AI provider to use (openai, gemini, or xai)'
             },
             prompt: {
@@ -175,7 +192,7 @@ class ImagoMcpServer
           properties: {
             provider: {
               type: 'string',
-              enum: SUPPORTED_PROVIDERS.map(&:to_s),
+              enum: available_providers.map(&:to_s),
               description: 'The AI provider to query (openai, gemini, or xai)'
             }
           },
@@ -211,7 +228,7 @@ class ImagoMcpServer
   end
 
   def call_list_providers
-    { providers: SUPPORTED_PROVIDERS.map(&:to_s) }
+    { providers: available_providers.map(&:to_s) }
   end
 
   def create_client(provider:, model: nil)

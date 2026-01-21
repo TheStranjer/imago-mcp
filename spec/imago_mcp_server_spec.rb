@@ -54,21 +54,169 @@ RSpec.describe ImagoMcpServer do
       expect(generate_tool.dig('inputSchema', 'type')).to eq('object')
       expect(generate_tool.dig('inputSchema', 'required')).to include('provider', 'prompt')
     end
+
+    context 'when only some providers are configured' do
+      before do
+        allow(ENV).to receive(:fetch).and_call_original
+        allow(ENV).to receive(:fetch).with('OPENAI_API_KEY', nil).and_return('test-openai-key')
+        allow(ENV).to receive(:fetch).with('GEMINI_API_KEY', nil).and_return(nil)
+        allow(ENV).to receive(:fetch).with('XAI_API_KEY', nil).and_return('test-xai-key')
+      end
+
+      it 'only includes configured providers in generate_image enum' do
+        response = send_request({ jsonrpc: '2.0', id: 3, method: 'tools/list', params: {} })
+
+        tools = response.dig('result', 'tools')
+        generate_tool = tools.find { |t| t['name'] == 'generate_image' }
+        provider_enum = generate_tool.dig('inputSchema', 'properties', 'provider', 'enum')
+
+        expect(provider_enum).to contain_exactly('openai', 'xai')
+        expect(provider_enum).not_to include('gemini')
+      end
+
+      it 'only includes configured providers in list_models enum' do
+        response = send_request({ jsonrpc: '2.0', id: 3, method: 'tools/list', params: {} })
+
+        tools = response.dig('result', 'tools')
+        list_models_tool = tools.find { |t| t['name'] == 'list_models' }
+        provider_enum = list_models_tool.dig('inputSchema', 'properties', 'provider', 'enum')
+
+        expect(provider_enum).to contain_exactly('openai', 'xai')
+        expect(provider_enum).not_to include('gemini')
+      end
+    end
+
+    context 'when all providers are configured' do
+      before do
+        allow(ENV).to receive(:fetch).and_call_original
+        allow(ENV).to receive(:fetch).with('OPENAI_API_KEY', nil).and_return('test-openai-key')
+        allow(ENV).to receive(:fetch).with('GEMINI_API_KEY', nil).and_return('test-gemini-key')
+        allow(ENV).to receive(:fetch).with('XAI_API_KEY', nil).and_return('test-xai-key')
+      end
+
+      it 'includes all providers in generate_image enum' do
+        response = send_request({ jsonrpc: '2.0', id: 3, method: 'tools/list', params: {} })
+
+        tools = response.dig('result', 'tools')
+        generate_tool = tools.find { |t| t['name'] == 'generate_image' }
+        provider_enum = generate_tool.dig('inputSchema', 'properties', 'provider', 'enum')
+
+        expect(provider_enum).to contain_exactly('openai', 'gemini', 'xai')
+      end
+    end
+
+    context 'when no providers are configured' do
+      before do
+        allow(ENV).to receive(:fetch).and_call_original
+        allow(ENV).to receive(:fetch).with('OPENAI_API_KEY', nil).and_return(nil)
+        allow(ENV).to receive(:fetch).with('GEMINI_API_KEY', nil).and_return(nil)
+        allow(ENV).to receive(:fetch).with('XAI_API_KEY', nil).and_return(nil)
+      end
+
+      it 'returns empty provider enum in generate_image' do
+        response = send_request({ jsonrpc: '2.0', id: 3, method: 'tools/list', params: {} })
+
+        tools = response.dig('result', 'tools')
+        generate_tool = tools.find { |t| t['name'] == 'generate_image' }
+        provider_enum = generate_tool.dig('inputSchema', 'properties', 'provider', 'enum')
+
+        expect(provider_enum).to be_empty
+      end
+    end
   end
 
   describe 'tools/call list_providers' do
-    it 'returns all supported providers' do
-      response = send_request({
-        jsonrpc: '2.0',
-        id: 4,
-        method: 'tools/call',
-        params: { name: 'list_providers', arguments: {} }
-      })
+    context 'when all providers are configured' do
+      before do
+        allow(ENV).to receive(:fetch).and_call_original
+        allow(ENV).to receive(:fetch).with('OPENAI_API_KEY', nil).and_return('test-openai-key')
+        allow(ENV).to receive(:fetch).with('GEMINI_API_KEY', nil).and_return('test-gemini-key')
+        allow(ENV).to receive(:fetch).with('XAI_API_KEY', nil).and_return('test-xai-key')
+      end
 
-      content = response.dig('result', 'content', 0, 'text')
-      result = JSON.parse(content)
+      it 'returns all supported providers' do
+        response = send_request({
+          jsonrpc: '2.0',
+          id: 4,
+          method: 'tools/call',
+          params: { name: 'list_providers', arguments: {} }
+        })
 
-      expect(result['providers']).to contain_exactly('openai', 'gemini', 'xai')
+        content = response.dig('result', 'content', 0, 'text')
+        result = JSON.parse(content)
+
+        expect(result['providers']).to contain_exactly('openai', 'gemini', 'xai')
+      end
+    end
+
+    context 'when only some providers are configured' do
+      before do
+        allow(ENV).to receive(:fetch).and_call_original
+        allow(ENV).to receive(:fetch).with('OPENAI_API_KEY', nil).and_return('test-openai-key')
+        allow(ENV).to receive(:fetch).with('GEMINI_API_KEY', nil).and_return(nil)
+        allow(ENV).to receive(:fetch).with('XAI_API_KEY', nil).and_return('test-xai-key')
+      end
+
+      it 'returns only configured providers' do
+        response = send_request({
+          jsonrpc: '2.0',
+          id: 4,
+          method: 'tools/call',
+          params: { name: 'list_providers', arguments: {} }
+        })
+
+        content = response.dig('result', 'content', 0, 'text')
+        result = JSON.parse(content)
+
+        expect(result['providers']).to contain_exactly('openai', 'xai')
+        expect(result['providers']).not_to include('gemini')
+      end
+    end
+
+    context 'when no providers are configured' do
+      before do
+        allow(ENV).to receive(:fetch).and_call_original
+        allow(ENV).to receive(:fetch).with('OPENAI_API_KEY', nil).and_return(nil)
+        allow(ENV).to receive(:fetch).with('GEMINI_API_KEY', nil).and_return(nil)
+        allow(ENV).to receive(:fetch).with('XAI_API_KEY', nil).and_return(nil)
+      end
+
+      it 'returns empty providers list' do
+        response = send_request({
+          jsonrpc: '2.0',
+          id: 4,
+          method: 'tools/call',
+          params: { name: 'list_providers', arguments: {} }
+        })
+
+        content = response.dig('result', 'content', 0, 'text')
+        result = JSON.parse(content)
+
+        expect(result['providers']).to be_empty
+      end
+    end
+
+    context 'when provider has empty string for API key' do
+      before do
+        allow(ENV).to receive(:fetch).and_call_original
+        allow(ENV).to receive(:fetch).with('OPENAI_API_KEY', nil).and_return('')
+        allow(ENV).to receive(:fetch).with('GEMINI_API_KEY', nil).and_return('test-gemini-key')
+        allow(ENV).to receive(:fetch).with('XAI_API_KEY', nil).and_return(nil)
+      end
+
+      it 'treats empty string as unavailable' do
+        response = send_request({
+          jsonrpc: '2.0',
+          id: 4,
+          method: 'tools/call',
+          params: { name: 'list_providers', arguments: {} }
+        })
+
+        content = response.dig('result', 'content', 0, 'text')
+        result = JSON.parse(content)
+
+        expect(result['providers']).to contain_exactly('gemini')
+      end
     end
   end
 
