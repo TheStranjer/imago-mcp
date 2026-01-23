@@ -23,12 +23,14 @@ class ImagoMcpServer
     'image/gif' => 'gif',
     'image/webp' => 'webp'
   }.freeze
+  DEFAULT_USER_AGENT = 'curl/8.5.0'
 
   def initialize(input: $stdin, output: $stdout)
     @input = input
     @output = output
     @running = false
-    debug_log("Server initialized. UPLOAD_URL: #{upload_url.inspect}, UPLOAD_EXPIRATION: #{upload_expiration}")
+    debug_log("Server initialized. UPLOAD_URL: #{upload_url.inspect}, " \
+              "UPLOAD_EXPIRATION: #{upload_expiration}, UPLOAD_USER_AGENT: #{upload_user_agent.inspect}")
   end
 
   def debug_log(message)
@@ -317,6 +319,10 @@ class ImagoMcpServer
     ENV.fetch('UPLOAD_EXPIRATION', '1').to_i
   end
 
+  def upload_user_agent
+    ENV.fetch('UPLOAD_USER_AGENT', DEFAULT_USER_AGENT)
+  end
+
   def process_generated_images(result)
     debug_log("process_generated_images called. upload_enabled?=#{upload_enabled?}")
     unless upload_enabled?
@@ -378,9 +384,10 @@ class ImagoMcpServer
 
     request = Net::HTTP::Post.new(uri.request_uri)
     request['Content-Type'] = "multipart/form-data; boundary=#{boundary}"
+    request['User-Agent'] = upload_user_agent
     request.body = body
 
-    debug_log("  Sending HTTP POST to #{uri.host}:#{uri.port} (ssl=#{uri.scheme == 'https'})")
+    debug_log("  Sending HTTP POST to #{uri.host}:#{uri.port} (ssl=#{uri.scheme == 'https'}, ua=#{upload_user_agent})")
     response = Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == 'https') do |http|
       http.request(request)
     end

@@ -118,6 +118,7 @@ By default, some providers return images as base64 data, which can be large and 
 ```bash
 export UPLOAD_URL="https://0x0.st"
 export UPLOAD_EXPIRATION="24"  # Hours until expiration (default: 1)
+export UPLOAD_USER_AGENT="curl/8.5.0"  # Optional, defaults to curl/8.5.0
 ```
 
 #### Windows
@@ -125,6 +126,7 @@ export UPLOAD_EXPIRATION="24"  # Hours until expiration (default: 1)
 ```cmd
 setx UPLOAD_URL "https://0x0.st"
 setx UPLOAD_EXPIRATION "24"
+setx UPLOAD_USER_AGENT "curl/8.5.0"
 ```
 
 When `UPLOAD_URL` is set:

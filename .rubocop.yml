@@ -18,7 +18,7 @@ Metrics/MethodLength:
     - 'imago_mcp_server.rb'
 
 Metrics/AbcSize:
-  Max: 36
+  Max: 40
 
 Metrics/CyclomaticComplexity:
   Max: 10

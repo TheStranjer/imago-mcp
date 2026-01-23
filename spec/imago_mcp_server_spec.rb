@@ -1094,6 +1094,66 @@ RSpec.describe ImagoMcpServer do
 
         expect(result['images'].first['url']).to eq('https://0x0.st/str.png')
       end
+
+      it 'uses default curl user agent when UPLOAD_USER_AGENT not set' do
+        allow(ENV).to receive(:fetch).with('UPLOAD_USER_AGENT', 'curl/8.5.0').and_return('curl/8.5.0')
+
+        allow(mock_client).to receive(:generate).and_return({
+          images: [{ b64_json: 'dGVzdA==', mime_type: 'image/png' }]
+        })
+
+        captured_request = nil
+        allow(Net::HTTP).to receive(:start) do |_host, _port, **_opts, &block|
+          mock_http = instance_double(Net::HTTP)
+          allow(mock_http).to receive(:request) do |req|
+            captured_request = req
+            instance_double(Net::HTTPResponse, code: '200', body: 'https://0x0.st/test.png')
+          end
+          block.call(mock_http)
+        end
+
+        send_request({
+          jsonrpc: '2.0',
+          id: 51,
+          method: 'tools/call',
+          params: {
+            name: 'generate_image',
+            arguments: { 'provider' => 'openai', 'prompt' => 'test' }
+          }
+        })
+
+        expect(captured_request['User-Agent']).to eq('curl/8.5.0')
+      end
+
+      it 'uses custom user agent when UPLOAD_USER_AGENT is set' do
+        allow(ENV).to receive(:fetch).with('UPLOAD_USER_AGENT', 'curl/8.5.0').and_return('MyCustomAgent/1.0')
+
+        allow(mock_client).to receive(:generate).and_return({
+          images: [{ b64_json: 'dGVzdA==', mime_type: 'image/png' }]
+        })
+
+        captured_request = nil
+        allow(Net::HTTP).to receive(:start) do |_host, _port, **_opts, &block|
+          mock_http = instance_double(Net::HTTP)
+          allow(mock_http).to receive(:request) do |req|
+            captured_request = req
+            instance_double(Net::HTTPResponse, code: '200', body: 'https://0x0.st/test.png')
+          end
+          block.call(mock_http)
+        end
+
+        send_request({
+          jsonrpc: '2.0',
+          id: 52,
+          method: 'tools/call',
+          params: {
+            name: 'generate_image',
+            arguments: { 'provider' => 'openai', 'prompt' => 'test' }
+          }
+        })
+
+        expect(captured_request['User-Agent']).to eq('MyCustomAgent/1.0')
+      end
     end
   end
 end
