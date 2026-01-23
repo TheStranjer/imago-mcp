@@ -677,4 +677,423 @@ RSpec.describe ImagoMcpServer do
       expect(response['result']).to eq({})
     end
   end
+
+  describe 'image upload to 0x0' do
+    let(:mock_client) { double('Imago client') } # rubocop:disable RSpec/VerifiedDoubles
+
+    before do
+      allow(Imago).to receive(:new).and_return(mock_client)
+    end
+
+    context 'when UPLOAD_URL is not set' do
+      before do
+        allow(ENV).to receive(:fetch).and_call_original
+        allow(ENV).to receive(:fetch).with('UPLOAD_URL', nil).and_return(nil)
+      end
+
+      it 'returns base64 images unchanged' do
+        allow(mock_client).to receive(:generate).and_return({
+          images: [{ b64_json: 'iVBORw0KGgo', mime_type: 'image/png' }]
+        })
+
+        response = send_request({
+          jsonrpc: '2.0',
+          id: 30,
+          method: 'tools/call',
+          params: {
+            name: 'generate_image',
+            arguments: { 'provider' => 'openai', 'prompt' => 'test' }
+          }
+        })
+
+        content = response.dig('result', 'content', 0, 'text')
+        result = JSON.parse(content)
+
+        expect(result['images'].first['b64_json']).to eq('iVBORw0KGgo')
+      end
+    end
+
+    context 'when UPLOAD_URL is empty string' do
+      before do
+        allow(ENV).to receive(:fetch).and_call_original
+        allow(ENV).to receive(:fetch).with('UPLOAD_URL', nil).and_return('')
+      end
+
+      it 'returns base64 images unchanged' do
+        allow(mock_client).to receive(:generate).and_return({
+          images: [{ b64_json: 'iVBORw0KGgo', mime_type: 'image/png' }]
+        })
+
+        response = send_request({
+          jsonrpc: '2.0',
+          id: 31,
+          method: 'tools/call',
+          params: {
+            name: 'generate_image',
+            arguments: { 'provider' => 'openai', 'prompt' => 'test' }
+          }
+        })
+
+        content = response.dig('result', 'content', 0, 'text')
+        result = JSON.parse(content)
+
+        expect(result['images'].first['b64_json']).to eq('iVBORw0KGgo')
+      end
+    end
+
+    context 'when UPLOAD_URL is set' do
+      let(:upload_url) { 'https://0x0.st' }
+
+      before do
+        allow(ENV).to receive(:fetch).and_call_original
+        allow(ENV).to receive(:fetch).with('UPLOAD_URL', nil).and_return(upload_url)
+        allow(ENV).to receive(:fetch).with('UPLOAD_EXPIRATION', '1').and_return('24')
+      end
+
+      it 'uploads base64 images and returns URLs' do
+        allow(mock_client).to receive(:generate).and_return({
+          images: [{ b64_json: 'iVBORw0KGgo', mime_type: 'image/png' }]
+        })
+
+        mock_response = instance_double(Net::HTTPResponse, code: '200', body: "https://0x0.st/abc.png\n")
+        allow(Net::HTTP).to receive(:start).and_return(mock_response)
+
+        response = send_request({
+          jsonrpc: '2.0',
+          id: 32,
+          method: 'tools/call',
+          params: {
+            name: 'generate_image',
+            arguments: { 'provider' => 'openai', 'prompt' => 'test' }
+          }
+        })
+
+        content = response.dig('result', 'content', 0, 'text')
+        result = JSON.parse(content)
+
+        expect(result['images'].first['url']).to eq('https://0x0.st/abc.png')
+        expect(result['images'].first).not_to have_key('b64_json')
+      end
+
+      it 'handles base64 key as well as b64_json' do
+        allow(mock_client).to receive(:generate).and_return({
+          images: [{ base64: 'iVBORw0KGgo', mime_type: 'image/png' }]
+        })
+
+        mock_response = instance_double(Net::HTTPResponse, code: '200', body: "https://0x0.st/def.png\n")
+        allow(Net::HTTP).to receive(:start).and_return(mock_response)
+
+        response = send_request({
+          jsonrpc: '2.0',
+          id: 33,
+          method: 'tools/call',
+          params: {
+            name: 'generate_image',
+            arguments: { 'provider' => 'gemini', 'prompt' => 'test' }
+          }
+        })
+
+        content = response.dig('result', 'content', 0, 'text')
+        result = JSON.parse(content)
+
+        expect(result['images'].first['url']).to eq('https://0x0.st/def.png')
+      end
+
+      it 'passes through URL images unchanged' do
+        allow(mock_client).to receive(:generate).and_return({
+          images: [{ url: 'https://example.com/existing.png' }]
+        })
+
+        response = send_request({
+          jsonrpc: '2.0',
+          id: 34,
+          method: 'tools/call',
+          params: {
+            name: 'generate_image',
+            arguments: { 'provider' => 'openai', 'prompt' => 'test' }
+          }
+        })
+
+        content = response.dig('result', 'content', 0, 'text')
+        result = JSON.parse(content)
+
+        expect(result['images'].first['url']).to eq('https://example.com/existing.png')
+      end
+
+      it 'processes multiple images' do
+        allow(mock_client).to receive(:generate).and_return({
+          images: [
+            { b64_json: 'image1data', mime_type: 'image/png' },
+            { url: 'https://example.com/existing.png' },
+            { b64_json: 'image2data', mime_type: 'image/jpeg' }
+          ]
+        })
+
+        call_count = 0
+        allow(Net::HTTP).to receive(:start) do
+          call_count += 1
+          instance_double(Net::HTTPResponse, code: '200', body: "https://0x0.st/img#{call_count}.png\n")
+        end
+
+        response = send_request({
+          jsonrpc: '2.0',
+          id: 35,
+          method: 'tools/call',
+          params: {
+            name: 'generate_image',
+            arguments: { 'provider' => 'openai', 'prompt' => 'test', 'n' => 3 }
+          }
+        })
+
+        content = response.dig('result', 'content', 0, 'text')
+        result = JSON.parse(content)
+
+        expect(result['images'][0]['url']).to eq('https://0x0.st/img1.png')
+        expect(result['images'][1]['url']).to eq('https://example.com/existing.png')
+        expect(result['images'][2]['url']).to eq('https://0x0.st/img2.png')
+      end
+
+      it 'keeps original image if upload fails' do
+        allow(mock_client).to receive(:generate).and_return({
+          images: [{ b64_json: 'iVBORw0KGgo', mime_type: 'image/png' }]
+        })
+
+        mock_response = instance_double(Net::HTTPResponse, code: '500', body: 'Internal Server Error')
+        allow(Net::HTTP).to receive(:start).and_return(mock_response)
+
+        response = send_request({
+          jsonrpc: '2.0',
+          id: 36,
+          method: 'tools/call',
+          params: {
+            name: 'generate_image',
+            arguments: { 'provider' => 'openai', 'prompt' => 'test' }
+          }
+        })
+
+        content = response.dig('result', 'content', 0, 'text')
+        result = JSON.parse(content)
+
+        expect(result['images'].first['b64_json']).to eq('iVBORw0KGgo')
+      end
+
+      it 'keeps original image if upload raises exception' do
+        allow(mock_client).to receive(:generate).and_return({
+          images: [{ b64_json: 'iVBORw0KGgo', mime_type: 'image/png' }]
+        })
+
+        allow(Net::HTTP).to receive(:start).and_raise(Errno::ECONNREFUSED)
+
+        response = send_request({
+          jsonrpc: '2.0',
+          id: 37,
+          method: 'tools/call',
+          params: {
+            name: 'generate_image',
+            arguments: { 'provider' => 'openai', 'prompt' => 'test' }
+          }
+        })
+
+        content = response.dig('result', 'content', 0, 'text')
+        result = JSON.parse(content)
+
+        expect(result['images'].first['b64_json']).to eq('iVBORw0KGgo')
+      end
+
+      it 'sends multipart form data with correct content type' do
+        allow(mock_client).to receive(:generate).and_return({
+          images: [{ b64_json: 'dGVzdA==', mime_type: 'image/png' }]
+        })
+
+        captured_request = nil
+        allow(Net::HTTP).to receive(:start) do |_host, _port, **_opts, &block|
+          mock_http = instance_double(Net::HTTP)
+          allow(mock_http).to receive(:request) do |req|
+            captured_request = req
+            instance_double(Net::HTTPResponse, code: '200', body: 'https://0x0.st/test.png')
+          end
+          block.call(mock_http)
+        end
+
+        send_request({
+          jsonrpc: '2.0',
+          id: 38,
+          method: 'tools/call',
+          params: {
+            name: 'generate_image',
+            arguments: { 'provider' => 'openai', 'prompt' => 'test' }
+          }
+        })
+
+        expect(captured_request).not_to be_nil
+        expect(captured_request['Content-Type']).to match(%r{multipart/form-data; boundary=})
+      end
+
+      it 'includes file, secret, and expires fields in multipart body' do
+        allow(mock_client).to receive(:generate).and_return({
+          images: [{ b64_json: 'dGVzdA==', mime_type: 'image/png' }]
+        })
+
+        captured_body = nil
+        allow(Net::HTTP).to receive(:start) do |_host, _port, **_opts, &block|
+          mock_http = instance_double(Net::HTTP)
+          allow(mock_http).to receive(:request) do |req|
+            captured_body = req.body
+            instance_double(Net::HTTPResponse, code: '200', body: 'https://0x0.st/test.png')
+          end
+          block.call(mock_http)
+        end
+
+        send_request({
+          jsonrpc: '2.0',
+          id: 38,
+          method: 'tools/call',
+          params: {
+            name: 'generate_image',
+            arguments: { 'provider' => 'openai', 'prompt' => 'test' }
+          }
+        })
+
+        expect(captured_body).to include('name="file"', 'name="secret"', 'name="expires"', '24')
+      end
+
+      it 'uses default expiration of 1 hour when not set' do
+        allow(ENV).to receive(:fetch).with('UPLOAD_EXPIRATION', '1').and_return('1')
+
+        allow(mock_client).to receive(:generate).and_return({
+          images: [{ b64_json: 'dGVzdA==', mime_type: 'image/png' }]
+        })
+
+        captured_body = nil
+        allow(Net::HTTP).to receive(:start) do |_host, _port, **_opts, &block|
+          mock_http = instance_double(Net::HTTP)
+          allow(mock_http).to receive(:request) do |req|
+            captured_body = req.body
+            instance_double(Net::HTTPResponse, code: '200', body: 'https://0x0.st/test.png')
+          end
+          block.call(mock_http)
+        end
+
+        send_request({
+          jsonrpc: '2.0',
+          id: 39,
+          method: 'tools/call',
+          params: {
+            name: 'generate_image',
+            arguments: { 'provider' => 'openai', 'prompt' => 'test' }
+          }
+        })
+
+        expect(captured_body).to include("name=\"expires\"\r\n\r\n1\r\n")
+      end
+
+      it 'uses correct extension for png mime type' do
+        allow(mock_client).to receive(:generate).and_return({
+          images: [{ b64_json: 'dGVzdA==', mime_type: 'image/png' }]
+        })
+
+        captured_body = nil
+        allow(Net::HTTP).to receive(:start) do |_host, _port, **_opts, &block|
+          mock_http = instance_double(Net::HTTP)
+          allow(mock_http).to receive(:request) do |req|
+            captured_body = req.body
+            instance_double(Net::HTTPResponse, code: '200', body: 'https://0x0.st/test.png')
+          end
+          block.call(mock_http)
+        end
+
+        send_request({
+          jsonrpc: '2.0',
+          id: 40,
+          method: 'tools/call',
+          params: {
+            name: 'generate_image',
+            arguments: { 'provider' => 'openai', 'prompt' => 'test' }
+          }
+        })
+
+        expect(captured_body).to include('filename="image.png"')
+      end
+
+      it 'uses correct extension for jpeg mime type' do
+        allow(mock_client).to receive(:generate).and_return({
+          images: [{ b64_json: 'dGVzdA==', mime_type: 'image/jpeg' }]
+        })
+
+        captured_body = nil
+        allow(Net::HTTP).to receive(:start) do |_host, _port, **_opts, &block|
+          mock_http = instance_double(Net::HTTP)
+          allow(mock_http).to receive(:request) do |req|
+            captured_body = req.body
+            instance_double(Net::HTTPResponse, code: '200', body: 'https://0x0.st/test.jpg')
+          end
+          block.call(mock_http)
+        end
+
+        send_request({
+          jsonrpc: '2.0',
+          id: 41,
+          method: 'tools/call',
+          params: {
+            name: 'generate_image',
+            arguments: { 'provider' => 'openai', 'prompt' => 'test' }
+          }
+        })
+
+        expect(captured_body).to include('filename="image.jpg"')
+      end
+
+      it 'defaults to png extension for unknown mime type' do
+        allow(mock_client).to receive(:generate).and_return({
+          images: [{ b64_json: 'dGVzdA==', mime_type: 'image/unknown' }]
+        })
+
+        captured_body = nil
+        allow(Net::HTTP).to receive(:start) do |_host, _port, **_opts, &block|
+          mock_http = instance_double(Net::HTTP)
+          allow(mock_http).to receive(:request) do |req|
+            captured_body = req.body
+            instance_double(Net::HTTPResponse, code: '200', body: 'https://0x0.st/test.png')
+          end
+          block.call(mock_http)
+        end
+
+        send_request({
+          jsonrpc: '2.0',
+          id: 42,
+          method: 'tools/call',
+          params: {
+            name: 'generate_image',
+            arguments: { 'provider' => 'openai', 'prompt' => 'test' }
+          }
+        })
+
+        expect(captured_body).to include('filename="image.png"')
+      end
+
+      it 'handles string keys in result' do
+        allow(mock_client).to receive(:generate).and_return({
+          'images' => [{ 'b64_json' => 'iVBORw0KGgo', 'mime_type' => 'image/png' }]
+        })
+
+        mock_response = instance_double(Net::HTTPResponse, code: '200', body: "https://0x0.st/str.png\n")
+        allow(Net::HTTP).to receive(:start).and_return(mock_response)
+
+        response = send_request({
+          jsonrpc: '2.0',
+          id: 50,
+          method: 'tools/call',
+          params: {
+            name: 'generate_image',
+            arguments: { 'provider' => 'openai', 'prompt' => 'test' }
+          }
+        })
+
+        content = response.dig('result', 'content', 0, 'text')
+        result = JSON.parse(content)
+
+        expect(result['images'].first['url']).to eq('https://0x0.st/str.png')
+      end
+    end
+  end
 end

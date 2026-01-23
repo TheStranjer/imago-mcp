@@ -3,6 +3,10 @@
 
 require 'json'
 require 'imago'
+require 'net/http'
+require 'uri'
+require 'base64'
+require 'securerandom'
 
 # MCP Server for the Imago gem - provides image generation through multiple AI providers
 class ImagoMcpServer
@@ -11,6 +15,13 @@ class ImagoMcpServer
     openai: 'OPENAI_API_KEY',
     gemini: 'GEMINI_API_KEY',
     xai: 'XAI_API_KEY'
+  }.freeze
+  MIME_TYPE_EXTENSIONS = {
+    'image/png' => 'png',
+    'image/jpeg' => 'jpg',
+    'image/jpg' => 'jpg',
+    'image/gif' => 'gif',
+    'image/webp' => 'webp'
   }.freeze
 
   def initialize(input: $stdin, output: $stdout)
@@ -247,7 +258,8 @@ class ImagoMcpServer
     client = create_client(provider: provider, model: model)
 
     options = build_generate_options(arguments)
-    client.generate(prompt, options)
+    result = client.generate(prompt, options)
+    process_generated_images(result)
   end
 
   def call_list_models(arguments)
@@ -285,6 +297,97 @@ class ImagoMcpServer
         image.transform_keys(&:to_sym)
       end
     end
+  end
+
+  def upload_enabled?
+    url = ENV.fetch('UPLOAD_URL', nil)
+    url && !url.empty?
+  end
+
+  def upload_url
+    ENV.fetch('UPLOAD_URL', nil)
+  end
+
+  def upload_expiration
+    ENV.fetch('UPLOAD_EXPIRATION', '1').to_i
+  end
+
+  def process_generated_images(result)
+    return result unless upload_enabled?
+
+    images = result[:images] || result['images']
+    return result unless images.is_a?(Array)
+
+    processed_images = images.map do |image|
+      process_single_image(image)
+    end
+
+    result_with_sym = result.transform_keys(&:to_sym)
+    result_with_sym[:images] = processed_images
+    result_with_sym
+  end
+
+  def process_single_image(image)
+    return image unless image.is_a?(Hash)
+
+    image = image.transform_keys(&:to_sym)
+    base64_data = image[:b64_json] || image[:base64]
+    return image unless base64_data
+
+    mime_type = image[:mime_type] || 'image/png'
+    uploaded_url = upload_to_0x0(base64_data, mime_type)
+    uploaded_url ? { url: uploaded_url } : image
+  end
+
+  def upload_to_0x0(base64_data, mime_type)
+    binary_data = Base64.decode64(base64_data)
+    extension = mime_type_to_extension(mime_type)
+
+    uri = URI.parse(upload_url)
+    boundary = "----RubyFormBoundary#{SecureRandom.hex(16)}"
+
+    body = build_multipart_body(binary_data, extension, boundary)
+
+    request = Net::HTTP::Post.new(uri.request_uri)
+    request['Content-Type'] = "multipart/form-data; boundary=#{boundary}"
+    request.body = body
+
+    response = Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == 'https') do |http|
+      http.request(request)
+    end
+
+    response.code.start_with?('2') ? response.body.strip : nil
+  rescue StandardError
+    nil
+  end
+
+  def build_multipart_body(binary_data, extension, boundary)
+    body = +''
+
+    # File field
+    body << "--#{boundary}\r\n"
+    body << "Content-Disposition: form-data; name=\"file\"; filename=\"image.#{extension}\"\r\n"
+    body << "Content-Type: application/octet-stream\r\n\r\n"
+    body << binary_data
+    body << "\r\n"
+
+    # Secret field (empty but present for longer URLs)
+    body << "--#{boundary}\r\n"
+    body << "Content-Disposition: form-data; name=\"secret\"\r\n\r\n"
+    body << "\r\n"
+
+    # Expires field
+    body << "--#{boundary}\r\n"
+    body << "Content-Disposition: form-data; name=\"expires\"\r\n\r\n"
+    body << upload_expiration.to_s
+    body << "\r\n"
+
+    body << "--#{boundary}--\r\n"
+    body
+  end
+
+  def mime_type_to_extension(mime_type)
+    MIME_TYPE_EXTENSIONS.fetch(mime_type, 'png')
   end
 
   def success_response(id, result)

@@ -109,6 +109,34 @@ setx XAI_API_KEY "your-xai-key"
 
 Or set them through System Properties > Environment Variables.
 
+### Image Upload (Optional)
+
+By default, some providers return images as base64 data, which can be large and unwieldy for LLMs to process. You can configure the server to automatically upload generated images to a [0x0.st](https://0x0.st)-compatible file hosting service and return URLs instead.
+
+#### macOS / Linux
+
+```bash
+export UPLOAD_URL="https://0x0.st"
+export UPLOAD_EXPIRATION="24"  # Hours until expiration (default: 1)
+```
+
+#### Windows
+
+```cmd
+setx UPLOAD_URL "https://0x0.st"
+setx UPLOAD_EXPIRATION "24"
+```
+
+When `UPLOAD_URL` is set:
+- Images returned as base64 (`b64_json`) will be uploaded to the specified service
+- The response will contain URLs instead of base64 data
+- Images returned as URLs are passed through unchanged
+
+You can use the public https://0x0.st service or host your own instance. The upload uses the following parameters:
+- `file`: The image binary
+- `secret`: Empty (generates longer, harder-to-guess URLs)
+- `expires`: Number of hours (from `UPLOAD_EXPIRATION` or 1 if not set)
+
 ## Usage
 
 ### Running the Server
