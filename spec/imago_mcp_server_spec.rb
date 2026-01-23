@@ -55,6 +55,18 @@ RSpec.describe ImagoMcpServer do
       expect(generate_tool.dig('inputSchema', 'required')).to include('provider', 'prompt')
     end
 
+    it 'includes images parameter in generate_image schema' do
+      response = send_request({ jsonrpc: '2.0', id: 3, method: 'tools/list', params: {} })
+
+      tools = response.dig('result', 'tools')
+      generate_tool = tools.find { |t| t['name'] == 'generate_image' }
+      images_schema = generate_tool.dig('inputSchema', 'properties', 'images')
+
+      expect(images_schema['type']).to eq('array')
+      expect(images_schema['items']['oneOf']).to be_an(Array)
+      expect(images_schema['items']['oneOf'].length).to eq(3)
+    end
+
     context 'when only some providers are configured' do
       before do
         allow(ENV).to receive(:fetch).and_call_original
@@ -345,6 +357,161 @@ RSpec.describe ImagoMcpServer do
 
       expect(result['images'].first['url']).to eq('https://example.com/image.png')
     end
+
+    context 'with image inputs' do
+      it 'passes URL string images to generate' do
+        allow(Imago).to receive(:new).and_return(mock_client)
+        allow(mock_client).to receive(:generate).and_return({ images: [] })
+
+        send_request({
+          jsonrpc: '2.0',
+          id: 20,
+          method: 'tools/call',
+          params: {
+            name: 'generate_image',
+            arguments: {
+              'provider' => 'openai',
+              'prompt' => 'make it colorful',
+              'images' => ['https://example.com/photo.jpg']
+            }
+          }
+        })
+
+        expect(mock_client).to have_received(:generate).with(
+          'make it colorful',
+          { images: ['https://example.com/photo.jpg'] }
+        )
+      end
+
+      it 'passes base64 images with mime_type to generate' do
+        allow(Imago).to receive(:new).and_return(mock_client)
+        allow(mock_client).to receive(:generate).and_return({ images: [] })
+
+        send_request({
+          jsonrpc: '2.0',
+          id: 21,
+          method: 'tools/call',
+          params: {
+            name: 'generate_image',
+            arguments: {
+              'provider' => 'openai',
+              'prompt' => 'add a hat',
+              'images' => [{ 'base64' => 'iVBORw0KGgo', 'mime_type' => 'image/png' }]
+            }
+          }
+        })
+
+        expect(mock_client).to have_received(:generate).with(
+          'add a hat',
+          { images: [{ base64: 'iVBORw0KGgo', mime_type: 'image/png' }] }
+        )
+      end
+
+      it 'passes URL with explicit mime_type to generate' do
+        allow(Imago).to receive(:new).and_return(mock_client)
+        allow(mock_client).to receive(:generate).and_return({ images: [] })
+
+        send_request({
+          jsonrpc: '2.0',
+          id: 22,
+          method: 'tools/call',
+          params: {
+            name: 'generate_image',
+            arguments: {
+              'provider' => 'gemini',
+              'prompt' => 'edit this',
+              'images' => [{ 'url' => 'https://example.com/photo', 'mime_type' => 'image/jpeg' }]
+            }
+          }
+        })
+
+        expect(mock_client).to have_received(:generate).with(
+          'edit this',
+          { images: [{ url: 'https://example.com/photo', mime_type: 'image/jpeg' }] }
+        )
+      end
+
+      it 'passes mixed image formats to generate' do
+        allow(Imago).to receive(:new).and_return(mock_client)
+        allow(mock_client).to receive(:generate).and_return({ images: [] })
+
+        send_request({
+          jsonrpc: '2.0',
+          id: 23,
+          method: 'tools/call',
+          params: {
+            name: 'generate_image',
+            arguments: {
+              'provider' => 'openai',
+              'prompt' => 'combine these',
+              'images' => [
+                'https://example.com/photo1.jpg',
+                { 'base64' => 'abc123', 'mime_type' => 'image/png' },
+                { 'url' => 'https://example.com/photo2', 'mime_type' => 'image/webp' }
+              ]
+            }
+          }
+        })
+
+        expect(mock_client).to have_received(:generate).with(
+          'combine these',
+          {
+            images: [
+              'https://example.com/photo1.jpg',
+              { base64: 'abc123', mime_type: 'image/png' },
+              { url: 'https://example.com/photo2', mime_type: 'image/webp' }
+            ]
+          }
+        )
+      end
+
+      it 'does not pass images when array is empty' do
+        allow(Imago).to receive(:new).and_return(mock_client)
+        allow(mock_client).to receive(:generate).and_return({ images: [] })
+
+        send_request({
+          jsonrpc: '2.0',
+          id: 24,
+          method: 'tools/call',
+          params: {
+            name: 'generate_image',
+            arguments: {
+              'provider' => 'openai',
+              'prompt' => 'generate new',
+              'images' => []
+            }
+          }
+        })
+
+        expect(mock_client).to have_received(:generate).with('generate new', {})
+      end
+
+      it 'passes images alongside other options' do
+        allow(Imago).to receive(:new).and_return(mock_client)
+        allow(mock_client).to receive(:generate).and_return({ images: [] })
+
+        send_request({
+          jsonrpc: '2.0',
+          id: 25,
+          method: 'tools/call',
+          params: {
+            name: 'generate_image',
+            arguments: {
+              'provider' => 'openai',
+              'prompt' => 'edit with options',
+              'images' => ['https://example.com/photo.jpg'],
+              'n' => 2,
+              'size' => '1024x1024'
+            }
+          }
+        })
+
+        expect(mock_client).to have_received(:generate).with(
+          'edit with options',
+          { n: 2, size: '1024x1024', images: ['https://example.com/photo.jpg'] }
+        )
+      end
+    end
   end
 
   describe 'tools/call list_models' do
@@ -447,6 +614,31 @@ RSpec.describe ImagoMcpServer do
 
       expect(response.dig('result', 'isError')).to be true
       expect(response.dig('result', 'content', 0, 'text')).to match(/Invalid request/)
+    end
+
+    it 'returns tool error for UnsupportedFeatureError' do
+      mock_client = double('Imago client') # rubocop:disable RSpec/VerifiedDoubles
+      allow(Imago).to receive(:new).and_return(mock_client)
+      allow(mock_client).to receive(:generate)
+        .and_raise(Imago::UnsupportedFeatureError, 'xAI does not support image inputs')
+
+      response = send_request({
+        jsonrpc: '2.0',
+        id: 26,
+        method: 'tools/call',
+        params: {
+          name: 'generate_image',
+          arguments: {
+            'provider' => 'xai',
+            'prompt' => 'edit this',
+            'images' => ['https://example.com/photo.jpg']
+          }
+        }
+      })
+
+      expect(response.dig('result', 'isError')).to be true
+      expect(response.dig('result', 'content', 0, 'text')).to match(/Unsupported feature/)
+      expect(response.dig('result', 'content', 0, 'text')).to match(/xAI does not support image inputs/)
     end
 
     it 'returns error for unknown tool' do

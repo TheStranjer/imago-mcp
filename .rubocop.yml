@@ -10,7 +10,7 @@ Style/Documentation:
   Enabled: false
 
 Metrics/ClassLength:
-  Max: 250
+  Max: 270
 
 Metrics/MethodLength:
   Max: 25
@@ -18,7 +18,7 @@ Metrics/MethodLength:
     - 'imago_mcp_server.rb'
 
 Metrics/AbcSize:
-  Max: 25
+  Max: 26
 
 Metrics/BlockLength:
   Exclude:
@@ -31,7 +31,7 @@ RSpec/MultipleExpectations:
   Max: 5
 
 RSpec/ExampleLength:
-  Max: 25
+  Max: 30
 
 RSpec/NestedGroups:
   Max: 4

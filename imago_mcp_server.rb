@@ -113,6 +113,8 @@ class ImagoMcpServer
     tool_error_response(id, "Configuration error: #{e.message}")
   rescue Imago::ProviderNotFoundError => e
     tool_error_response(id, "Provider not found: #{e.message}")
+  rescue Imago::UnsupportedFeatureError => e
+    tool_error_response(id, "Unsupported feature: #{e.message}")
   end
 
   def available_providers
@@ -179,6 +181,33 @@ class ImagoMcpServer
               type: 'string',
               enum: %w[url b64_json],
               description: 'Response format (OpenAI/xAI): url or b64_json'
+            },
+            images: {
+              type: 'array',
+              description: 'Input images for image editing (OpenAI/Gemini only). Each item can be: ' \
+                           '(1) a URL string, (2) an object with "url" and "mime_type", or ' \
+                           '(3) an object with "base64" and "mime_type"',
+              items: {
+                oneOf: [
+                  { type: 'string', description: 'URL of the image (MIME type auto-detected from extension)' },
+                  {
+                    type: 'object',
+                    properties: {
+                      url: { type: 'string', description: 'URL of the image' },
+                      mime_type: { type: 'string', description: 'MIME type (e.g., image/png, image/jpeg)' }
+                    },
+                    required: %w[url mime_type]
+                  },
+                  {
+                    type: 'object',
+                    properties: {
+                      base64: { type: 'string', description: 'Base64-encoded image data' },
+                      mime_type: { type: 'string', description: 'MIME type (e.g., image/png, image/jpeg)' }
+                    },
+                    required: %w[base64 mime_type]
+                  }
+                ]
+              }
             }
           },
           required: %w[provider prompt]
@@ -241,7 +270,21 @@ class ImagoMcpServer
       value = arguments[key]
       options[key.to_sym] = value unless value.nil?
     end
+
+    images = arguments['images']
+    options[:images] = normalize_images(images) if images && !images.empty?
+
     options
+  end
+
+  def normalize_images(images)
+    images.map do |image|
+      if image.is_a?(String)
+        image
+      else
+        image.transform_keys(&:to_sym)
+      end
+    end
   end
 
   def success_response(id, result)

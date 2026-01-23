@@ -5,6 +5,7 @@ An MCP (Model Context Protocol) server that provides access to multiple AI image
 ## Features
 
 - Generate images using OpenAI (DALL-E), Google Gemini (Imagen), or xAI (Grok)
+- Edit images using input images (OpenAI and Gemini only)
 - List available models for each provider
 - Unified interface across all providers
 - stdio transport for easy integration with MCP clients
@@ -153,7 +154,7 @@ Add the server to your MCP client configuration. For example, in Claude Desktop'
 
 ### generate_image
 
-Generate images from a text prompt.
+Generate images from a text prompt, optionally with input images for editing.
 
 **Parameters:**
 - `provider` (required): `openai`, `gemini`, or `xai`
@@ -166,6 +167,38 @@ Generate images from a text prompt.
 - `negative_prompt`: Terms to exclude (Gemini only)
 - `seed`: For reproducibility (Gemini only)
 - `response_format`: `url` or `b64_json` (OpenAI/xAI)
+- `images`: Array of input images for editing (OpenAI/Gemini only)
+
+**Image Input Formats:**
+
+The `images` parameter accepts an array where each item can be:
+
+1. **URL string** (MIME type auto-detected from extension):
+   ```json
+   ["https://example.com/photo.jpg"]
+   ```
+
+2. **URL with explicit MIME type**:
+   ```json
+   [{"url": "https://example.com/photo", "mime_type": "image/jpeg"}]
+   ```
+
+3. **Base64-encoded data**:
+   ```json
+   [{"base64": "iVBORw0KGgo...", "mime_type": "image/png"}]
+   ```
+
+4. **Mixed formats** are supported in the same request.
+
+**Provider Image Limits:**
+
+| Provider | Image Support | Max Images |
+|----------|---------------|------------|
+| OpenAI   | Yes (gpt-image-*, dall-e-2) | 16 |
+| Gemini   | Yes | 10 |
+| xAI      | No | N/A |
+
+Note: DALL-E 3 does not support image inputs.
 
 ### list_models
 
