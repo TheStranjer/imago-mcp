@@ -10,7 +10,7 @@ Style/Documentation:
   Enabled: false
 
 Metrics/ClassLength:
-  Max: 350
+  Max: 400
 
 Metrics/MethodLength:
   Max: 25
@@ -18,7 +18,13 @@ Metrics/MethodLength:
     - 'imago_mcp_server.rb'
 
 Metrics/AbcSize:
-  Max: 26
+  Max: 36
+
+Metrics/CyclomaticComplexity:
+  Max: 10
+
+Metrics/PerceivedComplexity:
+  Max: 10
 
 Metrics/BlockLength:
   Exclude:

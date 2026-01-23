@@ -28,6 +28,11 @@ class ImagoMcpServer
     @input = input
     @output = output
     @running = false
+    debug_log("Server initialized. UPLOAD_URL: #{upload_url.inspect}, UPLOAD_EXPIRATION: #{upload_expiration}")
+  end
+
+  def debug_log(message)
+    warn "[imago-debug] #{message}"
   end
 
   def run
@@ -313,35 +318,58 @@ class ImagoMcpServer
   end
 
   def process_generated_images(result)
-    return result unless upload_enabled?
+    debug_log("process_generated_images called. upload_enabled?=#{upload_enabled?}")
+    unless upload_enabled?
+      debug_log('Upload NOT enabled - returning original result')
+      return result
+    end
 
     images = result[:images] || result['images']
+    debug_log("Found images array: #{images.class}, count: #{images&.length || 'nil'}")
     return result unless images.is_a?(Array)
 
-    processed_images = images.map do |image|
+    processed_images = images.map.with_index do |image, idx|
+      debug_log("Processing image #{idx}: keys=#{image.is_a?(Hash) ? image.keys.inspect : image.class}")
       process_single_image(image)
     end
 
     result_with_sym = result.transform_keys(&:to_sym)
     result_with_sym[:images] = processed_images
+    debug_log("Finished processing. Returning #{processed_images.length} images")
     result_with_sym
   end
 
   def process_single_image(image)
-    return image unless image.is_a?(Hash)
+    unless image.is_a?(Hash)
+      debug_log("  Image is not a Hash (#{image.class}), skipping upload")
+      return image
+    end
 
     image = image.transform_keys(&:to_sym)
     base64_data = image[:b64_json] || image[:base64]
-    return image unless base64_data
 
+    unless base64_data
+      debug_log("  No base64 data found (keys: #{image.keys.inspect}), skipping upload")
+      return image
+    end
+
+    debug_log("  Found base64 data (#{base64_data.length} chars), attempting upload to #{upload_url}")
     mime_type = image[:mime_type] || 'image/png'
     uploaded_url = upload_to_0x0(base64_data, mime_type)
-    uploaded_url ? { url: uploaded_url } : image
+
+    if uploaded_url
+      debug_log("  Upload SUCCESS: #{uploaded_url}")
+      { url: uploaded_url }
+    else
+      debug_log('  Upload FAILED, keeping original base64 data')
+      image
+    end
   end
 
   def upload_to_0x0(base64_data, mime_type)
     binary_data = Base64.decode64(base64_data)
     extension = mime_type_to_extension(mime_type)
+    debug_log("  Uploading #{binary_data.length} bytes as .#{extension} to #{upload_url}")
 
     uri = URI.parse(upload_url)
     boundary = "----RubyFormBoundary#{SecureRandom.hex(16)}"
@@ -352,12 +380,15 @@ class ImagoMcpServer
     request['Content-Type'] = "multipart/form-data; boundary=#{boundary}"
     request.body = body
 
+    debug_log("  Sending HTTP POST to #{uri.host}:#{uri.port} (ssl=#{uri.scheme == 'https'})")
     response = Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == 'https') do |http|
       http.request(request)
     end
 
+    debug_log("  Response: #{response.code} - #{response.body[0..100]}")
     response.code.start_with?('2') ? response.body.strip : nil
-  rescue StandardError
+  rescue StandardError => e
+    debug_log("  Upload exception: #{e.class}: #{e.message}")
     nil
   end
 
