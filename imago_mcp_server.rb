@@ -16,6 +16,7 @@ class ImagoMcpServer
     gemini: 'GEMINI_API_KEY',
     xai: 'XAI_API_KEY'
   }.freeze
+  VERSION = '1.0.0'
   MIME_TYPE_EXTENSIONS = {
     'image/png' => 'png',
     'image/jpeg' => 'jpg',
@@ -23,7 +24,7 @@ class ImagoMcpServer
     'image/gif' => 'gif',
     'image/webp' => 'webp'
   }.freeze
-  DEFAULT_USER_AGENT = 'curl/8.5.0'
+  DEFAULT_USER_AGENT = "imago-mcp/#{VERSION}".freeze
 
   def initialize(input: $stdin, output: $stdout)
     @input = input
@@ -94,7 +95,7 @@ class ImagoMcpServer
       },
       serverInfo: {
         name: 'imago-mcp',
-        version: '1.0.0'
+        version: VERSION
       }
     })
   end

@@ -1095,9 +1095,7 @@ RSpec.describe ImagoMcpServer do
         expect(result['images'].first['url']).to eq('https://0x0.st/str.png')
       end
 
-      it 'uses default curl user agent when UPLOAD_USER_AGENT not set' do
-        allow(ENV).to receive(:fetch).with('UPLOAD_USER_AGENT', 'curl/8.5.0').and_return('curl/8.5.0')
-
+      it 'uses default imago-mcp user agent when UPLOAD_USER_AGENT not set' do
         allow(mock_client).to receive(:generate).and_return({
           images: [{ b64_json: 'dGVzdA==', mime_type: 'image/png' }]
         })
@@ -1122,11 +1120,13 @@ RSpec.describe ImagoMcpServer do
           }
         })
 
-        expect(captured_request['User-Agent']).to eq('curl/8.5.0')
+        expect(captured_request['User-Agent']).to eq("imago-mcp/#{described_class::VERSION}")
       end
 
       it 'uses custom user agent when UPLOAD_USER_AGENT is set' do
-        allow(ENV).to receive(:fetch).with('UPLOAD_USER_AGENT', 'curl/8.5.0').and_return('MyCustomAgent/1.0')
+        allow(ENV).to receive(:fetch)
+          .with('UPLOAD_USER_AGENT', "imago-mcp/#{described_class::VERSION}")
+          .and_return('MyCustomAgent/1.0')
 
         allow(mock_client).to receive(:generate).and_return({
           images: [{ b64_json: 'dGVzdA==', mime_type: 'image/png' }]
