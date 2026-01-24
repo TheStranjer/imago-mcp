@@ -6,7 +6,7 @@ require_relative 'support/request_helper'
 
 RSpec.configure do |config|
   # Capture stdout/stderr to prevent cluttering terminal output
-  config.around(:each) do |example|
+  config.around do |example|
     original_stdout = $stdout
     original_stderr = $stderr
     $stdout = StringIO.new
