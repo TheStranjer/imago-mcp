@@ -10,14 +10,6 @@ RSpec.describe ImagoMcpServer do
   let(:input) { StringIO.new }
   let(:output) { StringIO.new }
 
-  def send_request(request)
-    input.string = "#{request.to_json}\n"
-    input.rewind
-    server.send(:handle_message, input.gets.strip)
-    output.rewind
-    JSON.parse(output.read)
-  end
-
   describe '#initialize' do
     it 'returns server info with protocol version' do
       response = send_request({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} })

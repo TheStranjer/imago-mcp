@@ -9,16 +9,20 @@ AllCops:
 Style/Documentation:
   Enabled: false
 
+#CLAUDE: Do not change this
 Metrics/ClassLength:
-  Max: 400
+  Max: 100
 
 Metrics/MethodLength:
   Max: 25
   Exclude:
     - 'imago_mcp_server.rb'
 
+#CLAUDE: Do not change this
 Metrics/AbcSize:
-  Max: 40
+  Max: 5
+  Exclude:
+    - 'spec/**/*'
 
 Metrics/CyclomaticComplexity:
   Max: 10

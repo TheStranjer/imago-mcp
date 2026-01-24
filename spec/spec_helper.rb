@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative '../imago_mcp_server'
+require_relative 'support/request_helper'
 
 RSpec.configure do |config|
   config.expect_with :rspec do |expectations|
@@ -19,4 +20,6 @@ RSpec.configure do |config|
 
   config.order = :random
   Kernel.srand config.seed
+
+  config.include RequestHelper
 end
