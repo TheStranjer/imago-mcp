@@ -1,9 +1,24 @@
 # frozen_string_literal: true
 
+require 'stringio'
 require_relative '../imago_mcp_server'
 require_relative 'support/request_helper'
 
 RSpec.configure do |config|
+  # Capture stdout/stderr to prevent cluttering terminal output
+  config.around(:each) do |example|
+    original_stdout = $stdout
+    original_stderr = $stderr
+    $stdout = StringIO.new
+    $stderr = StringIO.new
+
+    begin
+      example.run
+    ensure
+      $stdout = original_stdout
+      $stderr = original_stderr
+    end
+  end
   config.expect_with :rspec do |expectations|
     expectations.include_chain_clauses_in_custom_matcher_descriptions = true
   end
