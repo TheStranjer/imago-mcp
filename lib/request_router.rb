@@ -80,7 +80,8 @@ class RequestRouter
   end
 
   def format_tool_result(id, result)
-    return build_dispatch_error(id, result) if tool_error?(result)
+    return build_dispatch_error(id, result) if dispatch_error?(result)
+    return tool_error_response(id, result[:message]) if tool_error?(result)
 
     build_tool_success(id, result)
   end
@@ -117,8 +118,12 @@ class RequestRouter
     { error: true, code: -32_602, message: "Unknown tool: #{name}" }
   end
 
-  def tool_error?(result)
+  def dispatch_error?(result)
     result.is_a?(Hash) && result[:error]
+  end
+
+  def tool_error?(result)
+    result.is_a?(Hash) && result[:tool_error]
   end
 
   def build_dispatch_error(id, result)

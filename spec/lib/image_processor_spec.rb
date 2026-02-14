@@ -31,8 +31,7 @@ RSpec.describe ImageProcessor do
         processed = processor.process(result)
 
         expect(processed).to eq(
-          error: true,
-          code: -32_602,
+          tool_error: true,
           message: 'Image generation produced no images. Verify the model supports image generation using list_models.'
         )
       end
@@ -43,7 +42,7 @@ RSpec.describe ImageProcessor do
 
         processed = processor.process(result)
 
-        expect(processed[:error]).to be true
+        expect(processed[:tool_error]).to be true
         expect(processed[:message]).to include('no images')
       end
     end
@@ -112,8 +111,7 @@ RSpec.describe ImageProcessor do
           processed = processor.process(result)
 
           expect(processed).to eq(
-            error: true,
-            code: -32_603,
+            tool_error: true,
             message: 'Upload failed (HTTP 500): Internal Server Error'
           )
         end
@@ -176,8 +174,7 @@ RSpec.describe ImageProcessor do
           processed = processor.process(result)
 
           expect(processed).to eq(
-            error: true,
-            code: -32_603,
+            tool_error: true,
             message: 'Upload failed (HTTP 413): File too large'
           )
         end

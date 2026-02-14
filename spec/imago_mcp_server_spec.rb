@@ -691,11 +691,11 @@ RSpec.describe ImagoMcpServer do
           }
         })
 
-        error = response['error']
+        result = response['result']
 
-        expect(error['code']).to eq(-32_602)
-        expect(error['message']).to include('no images')
-        expect(error['message']).to include('list_models')
+        expect(result['isError']).to be true
+        expect(result['content'][0]['text']).to include('no images')
+        expect(result['content'][0]['text']).to include('list_models')
       end
     end
 
@@ -885,10 +885,10 @@ RSpec.describe ImagoMcpServer do
           }
         })
 
-        error = response['error']
+        result = response['result']
 
-        expect(error['code']).to eq(-32_603)
-        expect(error['message']).to eq('Upload failed (HTTP 500): Internal Server Error')
+        expect(result['isError']).to be true
+        expect(result['content'][0]['text']).to eq('Upload failed (HTTP 500): Internal Server Error')
       end
 
       it 'returns an error when upload raises exception' do

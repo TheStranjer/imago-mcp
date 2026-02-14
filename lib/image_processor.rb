@@ -65,27 +65,29 @@ class ImageProcessor
   def upload_image(base64_data, image)
     mime = image[:mime_type] || 'image/png'
     result = @uploader.upload(base64_data, mime)
-    return upload_error_result(result) if upload_error?(result)
+    return upload_error_result(result) if uploader_error?(result)
 
     { url: result }
   end
 
-  def upload_error?(result)
+  def uploader_error?(result)
     result.is_a?(Hash) && result[:error]
+  end
+
+  def upload_error?(result)
+    result.is_a?(Hash) && result[:tool_error]
   end
 
   def empty_images_error
     {
-      error: true,
-      code: -32_602,
+      tool_error: true,
       message: 'Image generation produced no images. Verify the model supports image generation using list_models.'
     }
   end
 
   def upload_error_result(result)
     {
-      error: true,
-      code: -32_603,
+      tool_error: true,
       message: "Upload failed (HTTP #{result[:status_code]}): #{result[:body]}"
     }
   end
