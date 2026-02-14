@@ -27,7 +27,11 @@ class ImageProcessor
 
   def process_images(result, images)
     processed = images.map { |img| process_image(img) }
-    build_result(result, processed)
+    first_failure(processed) || build_result(result, processed)
+  end
+
+  def first_failure(processed)
+    processed.find { |img| upload_error?(img) }
   end
 
   def process_image(image)
@@ -50,8 +54,22 @@ class ImageProcessor
 
   def upload_image(base64_data, image)
     mime = image[:mime_type] || 'image/png'
-    url = @uploader.upload(base64_data, mime)
-    url ? { url: url } : image
+    result = @uploader.upload(base64_data, mime)
+    return upload_error_result(result) if upload_error?(result)
+
+    { url: result }
+  end
+
+  def upload_error?(result)
+    result.is_a?(Hash) && result[:error]
+  end
+
+  def upload_error_result(result)
+    {
+      error: true,
+      code: -32_603,
+      message: "Upload failed (HTTP #{result[:status_code]}): #{result[:body]}"
+    }
   end
 
   def build_result(result, processed)

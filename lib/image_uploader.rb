@@ -6,7 +6,7 @@ require 'base64'
 require_relative 'multipart_builder'
 require_relative 'upload_config'
 
-# Uploads images to 0x0.st file hosting
+# Uploads images to a file hosting service
 class ImageUploader
   MIME_TYPE_EXTENSIONS = {
     'image/png' => 'png',
@@ -22,8 +22,6 @@ class ImageUploader
 
   def upload(base64_data, mime_type)
     perform_full_upload(base64_data, mime_type)
-  rescue StandardError
-    nil
   end
 
   private
@@ -76,7 +74,7 @@ class ImageUploader
 
   def execute_and_process(uri, request)
     response = execute_request(uri, request)
-    extract_url(response)
+    build_result(response)
   end
 
   def execute_request(uri, request)
@@ -90,10 +88,14 @@ class ImageUploader
     end
   end
 
-  def extract_url(response)
-    return nil unless success_response?(response)
+  def build_result(response)
+    return response.body.strip if success_response?(response)
 
-    response.body.strip
+    failure_result(response)
+  end
+
+  def failure_result(response)
+    { error: true, status_code: response.code, body: response.body.strip }
   end
 
   def success_response?(response)

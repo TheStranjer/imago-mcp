@@ -845,7 +845,7 @@ RSpec.describe ImagoMcpServer do
         expect(result['images'][2]['url']).to eq('https://0x0.st/img2.png')
       end
 
-      it 'keeps original image if upload fails' do
+      it 'returns an error when upload fails' do
         allow(mock_client).to receive(:generate).and_return({
           images: [{ b64_json: 'iVBORw0KGgo', mime_type: 'image/png' }]
         })
@@ -863,13 +863,13 @@ RSpec.describe ImagoMcpServer do
           }
         })
 
-        content = response.dig('result', 'content', 0, 'text')
-        result = JSON.parse(content)
+        error = response['error']
 
-        expect(result['images'].first['b64_json']).to eq('iVBORw0KGgo')
+        expect(error['code']).to eq(-32_603)
+        expect(error['message']).to eq('Upload failed (HTTP 500): Internal Server Error')
       end
 
-      it 'keeps original image if upload raises exception' do
+      it 'returns an error when upload raises exception' do
         allow(mock_client).to receive(:generate).and_return({
           images: [{ b64_json: 'iVBORw0KGgo', mime_type: 'image/png' }]
         })
@@ -886,10 +886,10 @@ RSpec.describe ImagoMcpServer do
           }
         })
 
-        content = response.dig('result', 'content', 0, 'text')
-        result = JSON.parse(content)
+        error = response['error']
 
-        expect(result['images'].first['b64_json']).to eq('iVBORw0KGgo')
+        expect(error['code']).to eq(-32_603)
+        expect(error['message']).to include('Internal error')
       end
 
       it 'sends multipart form data with correct content type' do

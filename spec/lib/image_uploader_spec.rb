@@ -29,14 +29,27 @@ RSpec.describe ImageUploader do
 
     context 'when upload fails with non-2xx status' do
       before do
-        mock_response = instance_double(Net::HTTPResponse, code: '500', body: 'Error')
+        mock_response = instance_double(Net::HTTPResponse, code: '500', body: 'Internal Server Error')
         allow(Net::HTTP).to receive(:start).and_return(mock_response)
       end
 
-      it 'returns nil' do
+      it 'returns an error hash with status code and body' do
         result = uploader.upload(base64_data, mime_type)
 
-        expect(result).to be_nil
+        expect(result).to eq(error: true, status_code: '500', body: 'Internal Server Error')
+      end
+    end
+
+    context 'when upload fails with 413 status' do
+      before do
+        mock_response = instance_double(Net::HTTPResponse, code: '413', body: 'File too large')
+        allow(Net::HTTP).to receive(:start).and_return(mock_response)
+      end
+
+      it 'returns an error hash with the server message' do
+        result = uploader.upload(base64_data, mime_type)
+
+        expect(result).to eq(error: true, status_code: '413', body: 'File too large')
       end
     end
 
@@ -45,10 +58,9 @@ RSpec.describe ImageUploader do
         allow(Net::HTTP).to receive(:start).and_raise(Errno::ECONNREFUSED)
       end
 
-      it 'returns nil' do
-        result = uploader.upload(base64_data, mime_type)
-
-        expect(result).to be_nil
+      it 'raises the exception' do
+        expect { uploader.upload(base64_data, mime_type) }
+          .to raise_error(Errno::ECONNREFUSED)
       end
     end
   end

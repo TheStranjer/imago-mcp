@@ -79,13 +79,18 @@ RSpec.describe ImageProcessor do
       end
 
       context 'when upload fails' do
-        it 'returns original image' do
-          allow(uploader).to receive(:upload).and_return(nil)
+        it 'returns an error result with status code and body' do
+          allow(uploader).to receive(:upload)
+            .and_return(error: true, status_code: '500', body: 'Internal Server Error')
           result = { images: [{ b64_json: 'data', mime_type: 'image/png' }] }
 
           processed = processor.process(result)
 
-          expect(processed[:images].first).to include(b64_json: 'data')
+          expect(processed).to eq(
+            error: true,
+            code: -32_603,
+            message: 'Upload failed (HTTP 500): Internal Server Error'
+          )
         end
       end
 
@@ -121,6 +126,35 @@ RSpec.describe ImageProcessor do
           expect(processed[:images][0]).to eq({ url: 'https://0x0.st/img1.png' })
           expect(processed[:images][1]).to eq({ url: 'https://existing.com/img.png' })
           expect(processed[:images][2]).to eq({ url: 'https://0x0.st/img2.png' })
+        end
+      end
+
+      context 'with multiple images when one fails' do
+        it 'returns the error from the first failed upload' do
+          call_count = 0
+          allow(uploader).to receive(:upload) do
+            call_count += 1
+            if call_count == 1
+              'https://0x0.st/img1.png'
+            else
+              { error: true, status_code: '413', body: 'File too large' }
+            end
+          end
+
+          result = {
+            images: [
+              { b64_json: 'data1', mime_type: 'image/png' },
+              { b64_json: 'data2', mime_type: 'image/jpeg' }
+            ]
+          }
+
+          processed = processor.process(result)
+
+          expect(processed).to eq(
+            error: true,
+            code: -32_603,
+            message: 'Upload failed (HTTP 413): File too large'
+          )
         end
       end
 
