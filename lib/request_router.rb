@@ -80,10 +80,7 @@ class RequestRouter
   end
 
   def format_tool_result(id, result)
-    return build_dispatch_error(id, result) if dispatch_error?(result)
-    return tool_error_response(id, result[:message]) if tool_error?(result)
-
-    build_tool_success(id, result)
+    ToolResultBuilder.new(self, id, result).build
   end
 
   def execute_tool(params)
@@ -118,26 +115,52 @@ class RequestRouter
     { error: true, code: -32_602, message: "Unknown tool: #{name}" }
   end
 
-  def dispatch_error?(result)
-    result.is_a?(Hash) && result[:error]
-  end
-
-  def tool_error?(result)
-    result.is_a?(Hash) && result[:tool_error]
-  end
-
-  def build_dispatch_error(id, result)
-    error_response(id, result[:code], result[:message])
-  end
-
-  def build_tool_success(id, result)
-    content = [{ type: 'text', text: result.to_json }]
-    success_response(id, { content: content })
-  end
-
   def format_error(error)
-    formatter = ErrorFormatter.new(error)
-    formatter.format
+    ErrorFormatter.new(error).format
+  end
+end
+
+# Builds the appropriate MCP response for a tool result
+class ToolResultBuilder
+  include McpResponse
+
+  def initialize(router, id, result)
+    @router = router
+    @id = id
+    @result = result
+  end
+
+  def build
+    return tool_success unless @result.is_a?(Hash)
+
+    build_from_hash
+  end
+
+  private
+
+  def build_from_hash
+    return dispatch_error if @result[:error]
+
+    error_or_success
+  end
+
+  def error_or_success
+    return tool_error if @result[:tool_error]
+
+    tool_success
+  end
+
+  def dispatch_error
+    error_response(@id, @result[:code], @result[:message])
+  end
+
+  def tool_error
+    tool_error_response(@id, @result[:message])
+  end
+
+  def tool_success
+    content = [{ type: 'text', text: @result.to_json }]
+    success_response(@id, { content: content })
   end
 end
 
