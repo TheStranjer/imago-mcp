@@ -74,6 +74,7 @@ class ImageUploader
 
   def execute_and_process(uri, request)
     response = execute_request(uri, request)
+    dump_debug_headers(request, response) unless success_response?(response)
     build_result(response)
   end
 
@@ -92,6 +93,32 @@ class ImageUploader
     return response.body.strip if success_response?(response)
 
     failure_result(response)
+  end
+
+  def dump_debug_headers(request, response)
+    warn '=== Upload rejected - Debug dump ==='
+    dump_headers('Request', request)
+    dump_headers('Response', response)
+    dump_response_details(response)
+  end
+
+  def dump_headers(label, message)
+    warn "--- #{label} headers ---"
+    message.each_header { |name, value| warn "  #{name}: #{value}" }
+  end
+
+  def dump_response_details(response)
+    dump_response_status(response)
+    dump_response_body(response)
+    warn '=== End debug dump ==='
+  end
+
+  def dump_response_status(response)
+    warn "--- Response status: #{response.code} #{response.message} ---"
+  end
+
+  def dump_response_body(response)
+    warn "--- Response body: #{response.body.strip} ---"
   end
 
   def failure_result(response)

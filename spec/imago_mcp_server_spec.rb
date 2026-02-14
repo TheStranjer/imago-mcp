@@ -872,7 +872,12 @@ RSpec.describe ImagoMcpServer do
           images: [{ b64_json: 'iVBORw0KGgo', mime_type: 'image/png' }]
         })
 
-        mock_response = instance_double(Net::HTTPResponse, code: '500', body: 'Internal Server Error')
+        mock_response = instance_double(
+          Net::HTTPResponse,
+          code: '500', message: 'Internal Server Error',
+          body: 'Internal Server Error'
+        )
+        allow(mock_response).to receive(:each_header).and_yield('content-type', 'text/plain')
         allow(Net::HTTP).to receive(:start).and_return(mock_response)
 
         response = send_request({

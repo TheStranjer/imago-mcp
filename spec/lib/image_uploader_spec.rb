@@ -29,7 +29,9 @@ RSpec.describe ImageUploader do
 
     context 'when upload fails with non-2xx status' do
       before do
-        mock_response = instance_double(Net::HTTPResponse, code: '500', body: 'Internal Server Error')
+        mock_response = instance_double(Net::HTTPResponse, code: '500', message: 'Internal Server Error',
+                                                           body: 'Internal Server Error')
+        allow(mock_response).to receive(:each_header).and_yield('content-type', 'text/plain')
         allow(Net::HTTP).to receive(:start).and_return(mock_response)
       end
 
@@ -42,7 +44,9 @@ RSpec.describe ImageUploader do
 
     context 'when upload fails with 413 status' do
       before do
-        mock_response = instance_double(Net::HTTPResponse, code: '413', body: 'File too large')
+        mock_response = instance_double(Net::HTTPResponse, code: '413', message: 'Payload Too Large',
+                                                           body: 'File too large')
+        allow(mock_response).to receive(:each_header).and_yield('content-type', 'text/plain')
         allow(Net::HTTP).to receive(:start).and_return(mock_response)
       end
 
