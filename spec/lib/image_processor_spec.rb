@@ -23,6 +23,31 @@ RSpec.describe ImageProcessor do
       end
     end
 
+    context 'when images array is empty' do
+      it 'returns an error regardless of upload config' do
+        allow(config).to receive(:enabled?).and_return(false)
+        result = { images: [] }
+
+        processed = processor.process(result)
+
+        expect(processed).to eq(
+          error: true,
+          code: -32_602,
+          message: 'Image generation produced no images. Verify the model supports image generation using list_models.'
+        )
+      end
+
+      it 'returns an error with string keys' do
+        allow(config).to receive(:enabled?).and_return(true)
+        result = { 'images' => [] }
+
+        processed = processor.process(result)
+
+        expect(processed[:error]).to be true
+        expect(processed[:message]).to include('no images')
+      end
+    end
+
     context 'when upload is enabled' do
       before do
         allow(config).to receive(:enabled?).and_return(true)

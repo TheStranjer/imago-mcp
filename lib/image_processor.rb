@@ -11,18 +11,28 @@ class ImageProcessor
   end
 
   def process(result)
-    return result unless @config.enabled?
-
-    images = extract_images(result)
-    return result unless images.is_a?(Array)
-
-    process_images(result, images)
+    validate_and_process(result, extract_images(result))
   end
 
   private
 
+  def validate_and_process(result, images)
+    return empty_images_error if empty_images?(images)
+    return result unless uploadable?(images)
+
+    process_images(result, images)
+  end
+
   def extract_images(result)
     result[:images] || result['images']
+  end
+
+  def empty_images?(images)
+    images.is_a?(Array) && images.empty?
+  end
+
+  def uploadable?(images)
+    @config.enabled? && images.is_a?(Array)
   end
 
   def process_images(result, images)
@@ -62,6 +72,14 @@ class ImageProcessor
 
   def upload_error?(result)
     result.is_a?(Hash) && result[:error]
+  end
+
+  def empty_images_error
+    {
+      error: true,
+      code: -32_602,
+      message: 'Image generation produced no images. Verify the model supports image generation using list_models.'
+    }
   end
 
   def upload_error_result(result)

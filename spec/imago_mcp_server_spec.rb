@@ -677,6 +677,28 @@ RSpec.describe ImagoMcpServer do
       allow(Imago).to receive(:new).and_return(mock_client)
     end
 
+    context 'when generation returns empty images' do
+      it 'returns an error to the LLM agent' do
+        allow(mock_client).to receive(:generate).and_return({ images: [] })
+
+        response = send_request({
+          jsonrpc: '2.0',
+          id: 40,
+          method: 'tools/call',
+          params: {
+            name: 'generate_image',
+            arguments: { 'provider' => 'gemini', 'prompt' => 'test', 'model' => 'gemini-2.5-flash' }
+          }
+        })
+
+        error = response['error']
+
+        expect(error['code']).to eq(-32_602)
+        expect(error['message']).to include('no images')
+        expect(error['message']).to include('list_models')
+      end
+    end
+
     context 'when UPLOAD_URL is not set' do
       before do
         allow(ENV).to receive(:fetch).and_call_original
