@@ -3,6 +3,8 @@
 require_relative 'mcp_response'
 require_relative 'tools_schema'
 require_relative 'tool_handlers'
+require_relative 'tool_result_builder'
+require_relative 'error_formatter'
 
 # Routes MCP requests to appropriate handlers
 class RequestRouter
@@ -117,93 +119,5 @@ class RequestRouter
 
   def format_error(error)
     ErrorFormatter.new(error).format
-  end
-end
-
-# Builds the appropriate MCP response for a tool result
-class ToolResultBuilder
-  include McpResponse
-
-  def initialize(router, id, result)
-    @router = router
-    @id = id
-    @result = result
-  end
-
-  def build
-    return tool_success unless @result.is_a?(Hash)
-
-    build_from_hash
-  end
-
-  private
-
-  def build_from_hash
-    return dispatch_error if @result[:error]
-
-    error_or_success
-  end
-
-  def error_or_success
-    return tool_error if @result[:tool_error]
-
-    tool_success
-  end
-
-  def dispatch_error
-    error_response(@id, @result[:code], @result[:message])
-  end
-
-  def tool_error
-    tool_error_response(@id, @result[:message])
-  end
-
-  def tool_success
-    content = [{ type: 'text', text: @result.to_json }]
-    success_response(@id, { content: content })
-  end
-end
-
-# Formats Imago errors for MCP responses
-class ErrorFormatter
-  ERROR_PREFIXES = {
-    'Imago::AuthenticationError' => 'Authentication failed',
-    'Imago::RateLimitError' => 'Rate limit exceeded',
-    'Imago::InvalidRequestError' => 'Invalid request',
-    'Imago::ConfigurationError' => 'Configuration error',
-    'Imago::ProviderNotFoundError' => 'Provider not found',
-    'Imago::UnsupportedFeatureError' => 'Unsupported feature'
-  }.freeze
-
-  def initialize(error)
-    @error = error
-  end
-
-  def format
-    "#{prefix}: #{@error.message}"
-  end
-
-  private
-
-  def prefix
-    specific_prefix || generic_prefix
-  end
-
-  def specific_prefix
-    ERROR_PREFIXES[@error.class.to_s]
-  end
-
-  def generic_prefix
-    return api_error_prefix if api_error?
-
-    'Error'
-  end
-
-  def api_error?
-    @error.is_a?(Imago::ApiError)
-  end
-
-  def api_error_prefix
-    "API error (#{@error.status_code})"
   end
 end
